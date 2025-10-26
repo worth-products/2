@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>View / Edit / Download</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+<body class="bg-gray-50 min-h-screen p-6">
+  <div class="max-w-4xl mx-auto">
+    <h1 class="text-2xl font-semibold mb-4">Browse by Document ID</h1>
+
+    <div class="bg-white rounded shadow p-4 mb-4">
+      <div class="flex gap-2">
+        <input id="searchId" placeholder="Enter Document ID" class="border rounded px-2 py-1 w-2/3" />
+        <button id="searchBtn" class="bg-sky-600 text-white px-4 py-1 rounded">Search</button>
+        <button id="clearBtn" class="ml-auto text-sm text-slate-600">Clear</button>
+      </div>
+
+      <div id="results" class="mt-4"></div>
+    </div>
+  </div>
+
+  <!-- modal -->
+  <div id="modal" class="hidden fixed inset-0 flex items-center justify-center bg-black/40">
+    <div class="bg-white w-11/12 max-w-2xl rounded shadow p-4">
+      <div class="flex items-start justify-between">
+        <h2 id="modalTitle" class="text-lg font-medium">Edit</h2>
+        <button id="closeModal" class="text-slate-600">Close</button>
+      </div>
+      <div id="meta" class="text-xs text-slate-500 mt-1"></div>
+      <form id="editForm" class="mt-3 max-h-[60vh] overflow-auto space-y-2"></form>
+      <div class="flex gap-2 mt-3">
+        <button id="saveBtn" class="bg-green-600 text-white px-4 py-2 rounded">Save (new version)</button>
+        <button id="downloadXml" class="bg-sky-600 text-white px-4 py-2 rounded">Download XML</button>
+        <button id="downloadPdf" class="bg-amber-600 text-white px-4 py-2 rounded">Download PDF</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+const STORAGE_KEY = 'xml_manager_docs_v1';
+function getStore(){ try{ return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); }catch(e){return {}; } }
+function saveStore(s){ localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); }
+function parseXmlToObj(xmlText){ const p = new DOMParser().parseFromString(xmlText,'application/xml'); if(p.querySelector('parsererror')) throw new Error('Invalid XML'); const root = p.documentElement; const obj = {}; for(const ch of Array.from(root.children)){ obj[ch.tagName] = ch.textContent || ''; } return { rootName: root.tagName, data: obj }; }
+function buildXml(rootName, obj){ let xml = `<${rootName}>\n`; for(const k of Object.keys(obj)){ xml += `  <${k}>${(obj[k]||'')}</${k}>\n`; } xml += `</${rootName}>`; return xml; }
+
+const searchId = document.getElementById('searchId');
+const searchBtn = document.getElementById('searchBtn');
+const results = document.getElementById('results');
+const clearBtn = document.getElementById('clearBtn');
+const modal = document.getElementById('modal');
+const closeModal = document.getElementById('closeModal');
+const editForm = document.getElementById('editForm');
+const modalTitle = document.getElementById('modalTitle');
+const meta = document.getElementById('meta');
+const saveBtn = document.getElementById('saveBtn');
+const downloadXml = document.getElementById('downloadXml');
+const downloadPdf = document.getElementById('downloadPdf');
+
+let current = null; // { docId, docName, docType, version, xml }
+
+searchBtn.addEventListener('click', ()=>{
+  const id = searchId.value.trim(); if(!id){ alert('Enter Document ID'); return; }
+  const store = getStore(); if(!store[id]){ results.innerHTML = '<div class="text-sm text-slate-500">No documents for this ID</div>'; return; }
+  const doc = store[id];
+  let html = `<div class="text-sm mb-2">${id} • ${doc.docName} • ${doc.type}</div>`;
+  html += '<div class="space-y-2">';
+  const arr = doc.versions.slice().sort((a,b)=>b.version-a.version);
+  for(const v of arr){
+    html += `<div class="border rounded p-2 flex items-center justify-between"><div class="text-xs">v${v.version} • ${new Date(v.timestamp).toLocaleString()}</div><div class="flex gap-2"><button data-id="${id}" data-version="${v.version}" class="openBtn bg-sky-600 text-white px-3 py-1 rounded text-xs">Open</button><button data-xml='${encodeURIComponent(v.xml)}' class="dlBtn bg-green-600 text-white px-3 py-1 rounded text-xs">Download XML</button></div></div>`;
+  }
+  html += '</div>';
+  results.innerHTML = html;
+  // attach listeners
+  document.querySelectorAll('.openBtn').forEach(b=> b.addEventListener('click', (e)=>{
+    const id = e.currentTarget.dataset.id; const ver = Number(e.currentTarget.dataset.version);
+    openRecord(id, ver);
+  }));
+  document.querySelectorAll('.dlBtn').forEach(b=> b.addEventListener('click', (e)=>{ const xml = decodeURIComponent(e.currentTarget.getAttribute('data-xml')); downloadText(xml, 'doc.xml'); }));
+});
+
+function openRecord(docId, version){ const store = getStore(); const doc = store[docId]; const rec = doc.versions.find(v=>v.version===version); if(!rec){ alert('Version not found'); return; }
+  current = { docId, docName: doc.docName, docType: doc.type, version: rec.version, xml: rec.xml };
+  modalTitle.textContent = `Edit ${doc.docName} (v${rec.version})`;
+  meta.textContent = `${docId} • ${doc.docType}`;
+  // build form
+  editForm.innerHTML = '';
+  let parsed;
+  try{ parsed = parseXmlToObj(rec.xml); } catch(e){ alert('Invalid XML'); return; }
+  for(const k of Object.keys(parsed.data)){
+    const wrap = document.createElement('div'); wrap.className='space-y-1';
+    const lbl = document.createElement('label'); lbl.className='text-sm font-medium'; lbl.textContent=k;
+    const ta = document.createElement('textarea'); ta.name = k; ta.className='w-full border rounded px-2 py-1'; ta.rows=2; ta.value = parsed.data[k];
+    wrap.appendChild(lbl); wrap.appendChild(ta); editForm.appendChild(wrap);
+  }
+  modal.classList.remove('hidden');
+}
+
+closeModal.addEventListener('click', ()=>{ modal.classList.add('hidden'); current=null; editForm.innerHTML=''; });
+
+saveBtn.addEventListener('click', ()=>{
+  if(!current) return; const fd = new FormData(editForm); const obj = {}; for(const [k,v] of fd.entries()) obj[k]=v;
+  const rootName = new DOMParser().parseFromString(current.xml,'application/xml').documentElement.tagName;
+  const newXml = buildXml(rootName, obj);
+  // save as new version
+  const store = getStore(); const doc = store[current.docId]; const nextV = (doc.versions.length? doc.versions[doc.versions.length-1].version+1 : 1);
+  doc.versions.push({ version: nextV, timestamp: new Date().toISOString(), xml: newXml });
+  saveStore(store);
+  alert('Saved as v'+nextV);
+  modal.classList.add('hidden'); editForm.innerHTML=''; current=null; // refresh
+  document.getElementById('searchBtn').click();
+});
+
+downloadXml.addEventListener('click', ()=>{ if(!current) return; downloadText(current.xml, `${current.docName}_v${current.version}.xml`); });
+
+downloadPdf.addEventListener('click', ()=>{
+  if(!current) return; // build PDF from current form values
+  const fd = new FormData(editForm); const entries=[]; for(const [k,v] of fd.entries()) entries.push({k,v});
+  const { jsPDF } = window.jspdf; const doc = new jsPDF({unit:'pt', format:'a4'});
+  let y=40; const margin=40; doc.setFontSize(12); doc.text(`${current.docName} — ID: ${current.docId}`, margin, y); y+=20; doc.setFontSize(10); doc.text(`Version: v${current.version}`, margin, y); y+=20;
+  for(const e of entries){ if(y>760){ doc.addPage(); y=40; } doc.setFont(undefined,'bold'); doc.text(e.k+':', margin, y); doc.setFont(undefined,'normal'); const lines = doc.splitTextToSize(e.v||'', 470); doc.text(lines, margin+80, y); y += (lines.length*12) + 12; }
+  doc.save(`${current.docName}_v${current.version}.pdf`);
+});
+
+function downloadText(text, filename){ const blob = new Blob([text], {type:'application/xml'}); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href=url; a.download=filename; a.click(); URL.revokeObjectURL(url); }
+
+clearBtn.addEventListener('click', ()=>{ searchId.value=''; results.innerHTML=''; });
+</script>
+</body>
+</html>
