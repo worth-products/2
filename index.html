@@ -1,0 +1,504 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>XML Manager (Offline) - Form · Upload · Browser</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <style>
+    /* minor modal backdrop */
+    .modal-backdrop { background: rgba(0,0,0,0.45); }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen text-slate-800">
+
+  <!-- App container -->
+  <div class="max-w-4xl mx-auto py-8 px-4">
+    <header class="flex items-center justify-between mb-6">
+      <h1 class="text-2xl font-semibold">XML Manager (Offline)</h1>
+      <nav class="space-x-2">
+        <button data-nav="form" class="nav-btn px-3 py-1 rounded bg-sky-600 text-white">Form → XML</button>
+        <button data-nav="upload" class="nav-btn px-3 py-1 rounded bg-sky-500 text-white/90">Upload XML</button>
+        <button data-nav="browse" class="nav-btn px-3 py-1 rounded bg-sky-400 text-white/90">Browse / Edit</button>
+      </nav>
+    </header>
+
+    <main id="app">
+
+      <!-- PAGE 1: Fixed Form -> Generate XML -->
+      <section id="page-form" class="space-y-4">
+        <div class="bg-white p-6 rounded shadow">
+          <h2 class="text-lg font-medium mb-3">User Input → Generate XML</h2>
+          <form id="fixedForm" class="space-y-3">
+            <div>
+              <label class="text-sm">Name</label>
+              <input name="name" class="w-full border rounded px-3 py-2" />
+            </div>
+            <div>
+              <label class="text-sm">Email</label>
+              <input name="email" type="email" class="w-full border rounded px-3 py-2" />
+            </div>
+            <div>
+              <label class="text-sm">Phone</label>
+              <input name="phone" class="w-full border rounded px-3 py-2" />
+            </div>
+            <div>
+              <label class="text-sm">Address</label>
+              <input name="address" class="w-full border rounded px-3 py-2" />
+            </div>
+            <div>
+              <label class="text-sm">Message</label>
+              <textarea name="message" rows="3" class="w-full border rounded px-3 py-2"></textarea>
+            </div>
+
+            <div class="flex gap-2 mt-3">
+              <button id="genXmlBtn" type="button" class="bg-sky-600 text-white px-4 py-2 rounded">Generate XML</button>
+              <button id="downloadXmlBtn" type="button" class="bg-green-600 text-white px-4 py-2 rounded hidden">Download XML</button>
+              <button id="clearForm" type="button" class="ml-auto text-sm text-slate-600">Clear</button>
+            </div>
+          </form>
+
+          <div id="xmlPreviewBox" class="mt-4 hidden">
+            <h3 class="text-sm font-medium mb-2">XML Preview</h3>
+            <pre id="xmlPreview" class="bg-slate-50 p-3 rounded max-h-60 overflow-auto text-xs"></pre>
+          </div>
+        </div>
+      </section>
+
+      <!-- PAGE 2: Upload -->
+      <section id="page-upload" class="hidden space-y-4">
+        <div class="bg-white p-6 rounded shadow">
+          <h2 class="text-lg font-medium mb-3">Upload / Import XML</h2>
+
+          <div class="space-y-3">
+            <label class="block text-sm">Choose a local XML file</label>
+            <input id="fileInput" type="file" accept=".xml,application/xml" class="mb-2" />
+
+            <div class="grid grid-cols-3 gap-2">
+              <div>
+                <label class="text-sm">Document ID</label>
+                <input id="uploadDocId" class="w-full border rounded px-2 py-1" placeholder="e.g. user123" />
+              </div>
+              <div>
+                <label class="text-sm">Document Name</label>
+                <input id="uploadDocName" class="w-full border rounded px-2 py-1" placeholder="e.g. Profile" />
+              </div>
+              <div>
+                <label class="text-sm">Document Type</label>
+                <input id="uploadDocType" class="w-full border rounded px-2 py-1" placeholder="e.g. user-data" />
+              </div>
+            </div>
+
+            <div class="flex gap-2">
+              <button id="uploadBtn" class="bg-sky-600 text-white px-4 py-2 rounded">Upload & Save</button>
+              <button id="pasteXmlBtn" class="bg-slate-100 px-4 py-2 rounded">Paste XML</button>
+              <button id="showAllBtn" class="ml-auto text-sm text-slate-600">Show all stored files</button>
+            </div>
+
+            <div id="pasteBox" class="mt-2 hidden">
+              <label class="text-sm">Paste XML content</label>
+              <textarea id="pasteArea" rows="6" class="w-full border rounded px-2 py-1"></textarea>
+              <div class="flex justify-end mt-2"><button id="pasteSaveBtn" class="bg-amber-600 text-white px-3 py-1 rounded">Save Pasted XML</button></div>
+            </div>
+
+            <div id="uploadMsg" class="text-sm text-green-700 hidden mt-2"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- PAGE 3: Browse / View / Edit -->
+      <section id="page-browse" class="hidden space-y-4">
+        <div class="bg-white p-6 rounded shadow">
+          <h2 class="text-lg font-medium mb-3">Browse Uploaded Files by Document ID</h2>
+
+          <div class="flex gap-2 items-center">
+            <input id="browseDocId" placeholder="Enter Document ID (e.g. user123)" class="w-2/3 border rounded px-2 py-1" />
+            <button id="browseBtn" class="bg-sky-600 text-white px-4 py-2 rounded">Search</button>
+            <button id="clearBrowse" class="text-sm text-slate-600">Clear</button>
+          </div>
+
+          <div id="filesList" class="mt-4 space-y-3 text-sm"></div>
+          <div id="noFilesMsg" class="mt-4 text-sm text-slate-500 hidden">No files found for this Document ID.</div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- Modal Popup for form editing -->
+  <div id="modal" class="fixed inset-0 hidden items-center justify-center modal-backdrop z-50">
+    <div class="bg-white rounded shadow-lg w-11/12 max-w-2xl p-4">
+      <div class="flex items-start justify-between">
+        <h3 id="modalTitle" class="text-lg font-medium">Edit Document</h3>
+        <button id="modalClose" class="text-slate-600">Close</button>
+      </div>
+      <div class="mt-3">
+        <div class="text-xs text-slate-500 mb-2">Document: <span id="modalDocMeta"></span></div>
+        <form id="modalForm" class="space-y-2 max-h-[60vh] overflow-auto">
+          <!-- dynamic fields will be injected here -->
+        </form>
+
+        <div class="flex gap-2 mt-3">
+          <button id="modalSave" class="bg-green-600 text-white px-4 py-2 rounded">Save as new version</button>
+          <button id="downloadXmlFromModal" class="bg-sky-600 text-white px-4 py-2 rounded">Download XML</button>
+          <button id="downloadPdfFromModal" class="bg-amber-600 text-white px-4 py-2 rounded">Download PDF</button>
+          <div class="ml-auto text-sm text-slate-500" id="modalVersionInfo"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+/* ========= IndexedDB wrapper (simple) ========= */
+const DB_NAME = 'xml_manager_db_v1';
+const STORE_NAME = 'files';
+
+function openDb() {
+  return new Promise((res, rej) => {
+    const req = indexedDB.open(DB_NAME, 1);
+    req.onupgradeneeded = (e) => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        const store = db.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true });
+        store.createIndex('docKey', ['docId', 'docName'], { unique: false });
+        store.createIndex('docId', 'docId', { unique: false });
+      }
+    };
+    req.onsuccess = () => res(req.result);
+    req.onerror = () => rej(req.error);
+  });
+}
+
+async function addFileRecord(record) {
+  const db = await openDb();
+  return new Promise((res, rej) => {
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    const store = tx.objectStore(STORE_NAME);
+    store.add(record).onsuccess = e => res(e.target.result);
+    tx.onerror = e => rej(e);
+  });
+}
+
+async function getRecordsByDocId(docId) {
+  const db = await openDb();
+  return new Promise((res, rej) => {
+    const tx = db.transaction(STORE_NAME, 'readonly');
+    const store = tx.objectStore(STORE_NAME);
+    const idx = store.index('docId');
+    const req = idx.getAll(IDBKeyRange.only(docId));
+    req.onsuccess = () => res(req.result);
+    req.onerror = () => rej(req.error);
+  });
+}
+
+async function getAllRecords() {
+  const db = await openDb();
+  return new Promise((res, rej) => {
+    const tx = db.transaction(STORE_NAME, 'readonly');
+    const store = tx.objectStore(STORE_NAME);
+    const req = store.getAll();
+    req.onsuccess = () => res(req.result);
+    req.onerror = () => rej(req.error);
+  });
+}
+
+async function getLatestVersionFor(docId, docName) {
+  const db = await openDb();
+  return new Promise((res, rej) => {
+    const tx = db.transaction(STORE_NAME, 'readonly');
+    const store = tx.objectStore(STORE_NAME);
+    const idx = store.index('docKey');
+    const range = IDBKeyRange.only([docId, docName]);
+    const req = idx.getAll(range);
+    req.onsuccess = () => {
+      const arr = req.result;
+      if (!arr || arr.length === 0) return res(null);
+      arr.sort((a,b)=>b.version - a.version);
+      res(arr[0]);
+    };
+    req.onerror = () => rej(req.error);
+  });
+}
+
+/* ======= Utilities ======= */
+function xmlEscape(str) {
+  if (str == null) return '';
+  return String(str)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;')
+    .replace(/'/g,'&apos;');
+}
+
+function buildXmlFromObj(rootName, obj) {
+  // simple conversion for flat object; nested tags would require recursion
+  let xml = `<${rootName}>\\n`;
+  for (const k of Object.keys(obj)) {
+    xml += `  <${k}>${xmlEscape(obj[k])}</${k}>\\n`;
+  }
+  xml += `</${rootName}>`;
+  return xml;
+}
+
+function parseXmlToObject(xmlText) {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(xmlText, 'application/xml');
+  const parseError = doc.querySelector('parsererror');
+  if (parseError) throw new Error('Invalid XML');
+  // Map: each child element of root -> key:value
+  const root = doc.documentElement;
+  const obj = {};
+  // if multiple child nodes with same name -> join with newline
+  for (const child of Array.from(root.children)) {
+    const key = child.tagName;
+    const val = child.textContent || '';
+    if (obj[key] !== undefined) {
+      obj[key] = obj[key] + "\\n" + val;
+    } else {
+      obj[key] = val;
+    }
+  }
+  return { rootName: root.tagName, data: obj };
+}
+
+/* ======= Page logic ======= */
+
+// Simple SPA nav
+document.querySelectorAll('.nav-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=> {
+    const target = btn.dataset.nav;
+    showPage(target);
+  });
+});
+function showPage(key) {
+  document.querySelectorAll('main section').forEach(s => s.classList.add('hidden'));
+  document.getElementById('page-' + key).classList.remove('hidden');
+  window.scrollTo(0,0);
+}
+// default
+showPage('form');
+
+/* -------- Page 1: Form → XML ---------- */
+const fixedForm = document.getElementById('fixedForm');
+const genXmlBtn = document.getElementById('genXmlBtn');
+const xmlPreviewBox = document.getElementById('xmlPreviewBox');
+const xmlPreview = document.getElementById('xmlPreview');
+const downloadXmlBtn = document.getElementById('downloadXmlBtn');
+const clearForm = document.getElementById('clearForm');
+
+genXmlBtn.addEventListener('click', ()=>{
+  const fd = new FormData(fixedForm);
+  const obj = {};
+  for (const [k,v] of fd.entries()) obj[k] = v;
+  const xml = buildXmlFromObj('user', obj);
+  xmlPreview.textContent = xml;
+  xmlPreviewBox.classList.remove('hidden');
+  downloadXmlBtn.classList.remove('hidden');
+});
+
+downloadXmlBtn.addEventListener('click', ()=>{
+  const xml = xmlPreview.textContent;
+  const blob = new Blob([xml], {type: 'application/xml'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'user_data.xml';
+  a.click();
+  URL.revokeObjectURL(url);
+});
+clearForm.addEventListener('click', ()=> {
+  fixedForm.reset();
+  xmlPreview.textContent = '';
+  xmlPreviewBox.classList.add('hidden');
+  downloadXmlBtn.classList.add('hidden');
+});
+
+/* -------- Page 2: Upload ---------- */
+const fileInput = document.getElementById('fileInput');
+const uploadBtn = document.getElementById('uploadBtn');
+const uploadDocId = document.getElementById('uploadDocId');
+const uploadDocName = document.getElementById('uploadDocName');
+const uploadDocType = document.getElementById('uploadDocType');
+const uploadMsg = document.getElementById('uploadMsg');
+const pasteXmlBtn = document.getElementById('pasteXmlBtn');
+const pasteBox = document.getElementById('pasteBox');
+const pasteArea = document.getElementById('pasteArea');
+const pasteSaveBtn = document.getElementById('pasteSaveBtn');
+const showAllBtn = document.getElementById('showAllBtn');
+
+uploadBtn.addEventListener('click', async ()=>{
+  const file = fileInput.files[0];
+  const docId = uploadDocId.value.trim();
+  const docName = uploadDocName.value.trim();
+  const docType = uploadDocType.value.trim() || 'generic';
+  if (!docId || !docName) { alert('Please enter Document ID and Name'); return; }
+  if (!file) { alert('Please select a file'); return; }
+
+  const text = await file.text();
+  // validate xml
+  try {
+    parseXmlToObject(text);
+  } catch (e) {
+    alert('Invalid XML file: ' + e.message);
+    return;
+  }
+
+  // find latest version
+  const latest = await getLatestVersionFor(docId, docName);
+  const nextVersion = latest ? (latest.version + 1) : 1;
+  await addFileRecord({
+    docId, docName, docType, xmlText: text, version: nextVersion, timestamp: new Date().toISOString()
+  });
+  uploadMsg.textContent = `Uploaded as version ${nextVersion}.`;
+  uploadMsg.classList.remove('hidden');
+  setTimeout(()=>uploadMsg.classList.add('hidden'), 3000);
+  fileInput.value = '';
+});
+
+pasteXmlBtn.addEventListener('click', ()=> {
+  pasteBox.classList.toggle('hidden');
+});
+pasteSaveBtn.addEventListener('click', async ()=>{
+  const text = pasteArea.value.trim();
+  const docId = uploadDocId.value.trim();
+  const docName = uploadDocName.value.trim();
+  const docType = uploadDocType.value.trim() || 'generic';
+  if (!docId || !docName) { alert('Please enter Document ID and Name'); return; }
+  if (!text) { alert('Paste XML content first'); return; }
+  try { parseXmlToObject(text); } catch(e) { alert('Invalid XML: ' + e.message); return; }
+  const latest = await getLatestVersionFor(docId, docName);
+  const nextVersion = latest ? (latest.version + 1) : 1;
+  await addFileRecord({ docId, docName, docType, xmlText: text, version: nextVersion, timestamp: new Date().toISOString() });
+  uploadMsg.textContent = `Pasted content saved as version ${nextVersion}.`;
+  uploadMsg.classList.remove('hidden');
+  setTimeout(()=>uploadMsg.classList.add('hidden'), 3000);
+  pasteArea.value = '';
+  pasteBox.classList.add('hidden');
+});
+
+showAllBtn.addEventListener('click', async ()=>{
+  const all = await getAllRecords();
+  if (!all.length) { alert('No stored files yet.'); return; }
+  // show simple list
+  let out = 'Stored files:\\n';
+  all.sort((a,b)=>a.docId.localeCompare(b.docId) || a.docName.localeCompare(b.docName) || b.version - a.version);
+  for (const r of all) {
+    out += `${r.docId} · ${r.docName} · v${r.version} · ${r.timestamp}\\n`;
+  }
+  alert(out);
+});
+
+/* -------- Page 3: Browse / Edit ---------- */
+const browseDocId = document.getElementById('browseDocId');
+const browseBtn = document.getElementById('browseBtn');
+const filesList = document.getElementById('filesList');
+const noFilesMsg = document.getElementById('noFilesMsg');
+const clearBrowse = document.getElementById('clearBrowse');
+
+browseBtn.addEventListener('click', async ()=> {
+  const id = browseDocId.value.trim();
+  if (!id) { alert('Enter Document ID'); return; }
+  const recs = await getRecordsByDocId(id);
+  filesList.innerHTML = '';
+  if (!recs || recs.length === 0) {
+    noFilesMsg.classList.remove('hidden');
+    return;
+  }
+  noFilesMsg.classList.add('hidden');
+
+  // group by docName
+  const groups = {};
+  for (const r of recs) {
+    const key = r.docName + '||' + r.docType;
+    groups[key] = groups[key] || [];
+    groups[key].push(r);
+  }
+
+  // render
+  for (const [k, arr] of Object.entries(groups)) {
+    const [name, type] = k.split('||');
+    const card = document.createElement('div');
+    card.className = 'border rounded p-3 bg-white';
+    const header = document.createElement('div');
+    header.className = 'flex items-center justify-between';
+    header.innerHTML = `<div><div class="font-medium">${name}</div><div class="text-xs text-slate-500">${type}</div></div>
+      <div class="text-xs text-slate-400">versions: ${arr.length}</div>`;
+    card.appendChild(header);
+
+    arr.sort((a,b)=>b.version - a.version);
+    const list = document.createElement('div');
+    list.className = 'mt-2 text-sm space-y-1';
+    for (const item of arr) {
+      const row = document.createElement('div');
+      row.className = 'flex items-center gap-2';
+      row.innerHTML = `<div class="flex-1 text-xs"><b>v${item.version}</b> • ${new Date(item.timestamp).toLocaleString()}</div>`;
+      const viewBtn = document.createElement('button');
+      viewBtn.className = 'px-2 py-1 rounded text-xs bg-sky-600 text-white';
+      viewBtn.textContent = 'Open';
+      viewBtn.addEventListener('click', ()=> openModalForRecord(item));
+      const downloadBtn = document.createElement('button');
+      downloadBtn.className = 'px-2 py-1 rounded text-xs bg-green-600 text-white';
+      downloadBtn.textContent = 'Download XML';
+      downloadBtn.addEventListener('click', ()=> downloadXmlText(item.xmlText, `${item.docName}_v${item.version}.xml`));
+      row.appendChild(viewBtn);
+      row.appendChild(downloadBtn);
+      list.appendChild(row);
+    }
+    card.appendChild(list);
+    filesList.appendChild(card);
+  }
+});
+clearBrowse.addEventListener('click', ()=> {
+  browseDocId.value = '';
+  filesList.innerHTML = '';
+  noFilesMsg.classList.add('hidden');
+});
+
+/* -------- Modal operations -------- */
+const modal = document.getElementById('modal');
+const modalTitle = document.getElementById('modalTitle');
+const modalDocMeta = document.getElementById('modalDocMeta');
+const modalForm = document.getElementById('modalForm');
+const modalSave = document.getElementById('modalSave');
+const modalClose = document.getElementById('modalClose');
+const modalVersionInfo = document.getElementById('modalVersionInfo');
+const downloadXmlFromModal = document.getElementById('downloadXmlFromModal');
+const downloadPdfFromModal = document.getElementById('downloadPdfFromModal');
+
+let currentModalRecord = null; // the version record being viewed (not edited in-place)
+
+function openModalForRecord(record) {
+  currentModalRecord = record;
+  modalTitle.textContent = `Edit: ${record.docName}`;
+  modalDocMeta.textContent = `${record.docId} • ${record.docType}`;
+  modalForm.innerHTML = '';
+  modalVersionInfo.textContent = `v${record.version} • ${new Date(record.timestamp).toLocaleString()}`;
+
+  // parse xml to fields
+  let parsed;
+  try { parsed = parseXmlToObject(record.xmlText); } catch(e) { alert('Error parsing XML: ' + e); return; }
+  const root = parsed.rootName;
+  const data = parsed.data;
+
+  // for each field, create input
+  for (const k of Object.keys(data)) {
+    const wrap = document.createElement('div');
+    wrap.className = 'space-y-1';
+    const lbl = document.createElement('label');
+    lbl.className = 'text-sm font-medium';
+    lbl.textContent = k;
+    const input = document.createElement('textarea');
+    input.className = 'w-full border rounded px-2 py-1 text-sm';
+    input.rows = 2;
+    input.name = k;
+    input.value = data[k];
+    wrap.appendChild(lbl);
+    wrap.appendChild(input);
+    modalForm.appendChild(wrap);
+  }
+
+  // also allow editing root name?
+  const rootWrap = document.createElement('div');
+  rootWrap.className = 'mt-
