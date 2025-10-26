@@ -3,102 +3,124 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>XML Manager (Offline) - Form · Upload · Browser</title>
+  <title>Upload & Manage XML</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <style>
-    /* minor modal backdrop */
-    .modal-backdrop { background: rgba(0,0,0,0.45); }
-  </style>
 </head>
-<body class="bg-gray-50 min-h-screen text-slate-800">
+<body class="bg-gray-50 min-h-screen p-6">
+  <div class="max-w-3xl mx-auto">
+    <h1 class="text-2xl font-semibold mb-4">Upload / Import XML</h1>
 
-  <!-- App container -->
-  <div class="max-w-4xl mx-auto py-8 px-4">
-    <header class="flex items-center justify-between mb-6">
-      <h1 class="text-2xl font-semibold">XML Manager (Offline)</h1>
-      <nav class="space-x-2">
-        <button data-nav="form" class="nav-btn px-3 py-1 rounded bg-sky-600 text-white">Form → XML</button>
-        <button data-nav="upload" class="nav-btn px-3 py-1 rounded bg-sky-500 text-white/90">Upload XML</button>
-        <button data-nav="browse" class="nav-btn px-3 py-1 rounded bg-sky-400 text-white/90">Browse / Edit</button>
-      </nav>
-    </header>
+    <div class="bg-white rounded shadow p-4 mb-4">
+      <label class="block text-sm mb-1">Select file to upload (.xml)</label>
+      <input id="fileInput" type="file" accept=".xml,application/xml" />
 
-    <main id="app">
+      <div class="grid grid-cols-3 gap-2 mt-3">
+        <input id="docId" placeholder="Document ID" class="border rounded px-2 py-1" />
+        <input id="docName" placeholder="Document Name" class="border rounded px-2 py-1" />
+        <input id="docType" placeholder="Document Type" class="border rounded px-2 py-1" />
+      </div>
 
-      <!-- PAGE 1: Fixed Form -> Generate XML -->
-      <section id="page-form" class="space-y-4">
-        <div class="bg-white p-6 rounded shadow">
-          <h2 class="text-lg font-medium mb-3">User Input → Generate XML</h2>
-          <form id="fixedForm" class="space-y-3">
-            <div>
-              <label class="text-sm">Name</label>
-              <input name="name" class="w-full border rounded px-3 py-2" />
-            </div>
-            <div>
-              <label class="text-sm">Email</label>
-              <input name="email" type="email" class="w-full border rounded px-3 py-2" />
-            </div>
-            <div>
-              <label class="text-sm">Phone</label>
-              <input name="phone" class="w-full border rounded px-3 py-2" />
-            </div>
-            <div>
-              <label class="text-sm">Address</label>
-              <input name="address" class="w-full border rounded px-3 py-2" />
-            </div>
-            <div>
-              <label class="text-sm">Message</label>
-              <textarea name="message" rows="3" class="w-full border rounded px-3 py-2"></textarea>
-            </div>
+      <div class="flex gap-2 mt-3">
+        <button id="uploadBtn" class="bg-sky-600 text-white px-4 py-2 rounded">Upload & Save</button>
+        <button id="pasteBtn" class="bg-slate-100 px-4 py-2 rounded">Paste XML</button>
+        <button id="showAll" class="ml-auto text-sm text-slate-600">Show all</button>
+      </div>
 
-            <div class="flex gap-2 mt-3">
-              <button id="genXmlBtn" type="button" class="bg-sky-600 text-white px-4 py-2 rounded">Generate XML</button>
-              <button id="downloadXmlBtn" type="button" class="bg-green-600 text-white px-4 py-2 rounded hidden">Download XML</button>
-              <button id="clearForm" type="button" class="ml-auto text-sm text-slate-600">Clear</button>
-            </div>
-          </form>
+      <div id="pasteAreaWrap" class="mt-3 hidden">
+        <textarea id="pasteArea" rows="8" class="w-full border rounded px-2 py-1"></textarea>
+        <div class="flex justify-end mt-2"><button id="savePaste" class="bg-amber-600 text-white px-3 py-1 rounded">Save Pasted</button></div>
+      </div>
 
-          <div id="xmlPreviewBox" class="mt-4 hidden">
-            <h3 class="text-sm font-medium mb-2">XML Preview</h3>
-            <pre id="xmlPreview" class="bg-slate-50 p-3 rounded max-h-60 overflow-auto text-xs"></pre>
-          </div>
-        </div>
-      </section>
+      <div id="msg" class="text-sm text-green-700 mt-3 hidden"></div>
+    </div>
 
-      <!-- PAGE 2: Upload -->
-      <section id="page-upload" class="hidden space-y-4">
-        <div class="bg-white p-6 rounded shadow">
-          <h2 class="text-lg font-medium mb-3">Upload / Import XML</h2>
+    <div class="bg-white rounded shadow p-4">
+      <h2 class="font-medium mb-2">Stored Documents (summary)</h2>
+      <div id="summary" class="text-sm"></div>
+    </div>
+  </div>
 
-          <div class="space-y-3">
-            <label class="block text-sm">Choose a local XML file</label>
-            <input id="fileInput" type="file" accept=".xml,application/xml" class="mb-2" />
+<script>
+const STORAGE_KEY = 'xml_manager_docs_v1';
+function getStore(){ try{ return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); }catch(e){return {}; } }
+function saveStore(s){ localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); }
+function parseXml(xmlText){ const p = new DOMParser().parseFromString(xmlText,'application/xml'); if(p.querySelector('parsererror')) throw new Error('Invalid XML'); return p; }
 
-            <div class="grid grid-cols-3 gap-2">
-              <div>
-                <label class="text-sm">Document ID</label>
-                <input id="uploadDocId" class="w-full border rounded px-2 py-1" placeholder="e.g. user123" />
-              </div>
-              <div>
-                <label class="text-sm">Document Name</label>
-                <input id="uploadDocName" class="w-full border rounded px-2 py-1" placeholder="e.g. Profile" />
-              </div>
-              <div>
-                <label class="text-sm">Document Type</label>
-                <input id="uploadDocType" class="w-full border rounded px-2 py-1" placeholder="e.g. user-data" />
-              </div>
-            </div>
+const fileInput = document.getElementById('fileInput');
+const uploadBtn = document.getElementById('uploadBtn');
+const docIdInput = document.getElementById('docId');
+const docNameInput = document.getElementById('docName');
+const docTypeInput = document.getElementById('docType');
+const msg = document.getElementById('msg');
+const pasteBtn = document.getElementById('pasteBtn');
+const pasteAreaWrap = document.getElementById('pasteAreaWrap');
+const pasteArea = document.getElementById('pasteArea');
+const savePaste = document.getElementById('savePaste');
+const showAll = document.getElementById('showAll');
+const summary = document.getElementById('summary');
 
-            <div class="flex gap-2">
-              <button id="uploadBtn" class="bg-sky-600 text-white px-4 py-2 rounded">Upload & Save</button>
-              <button id="pasteXmlBtn" class="bg-slate-100 px-4 py-2 rounded">Paste XML</button>
-              <button id="showAllBtn" class="ml-auto text-sm text-slate-600">Show all stored files</button>
-            </div>
+uploadBtn.addEventListener('click', async ()=>{
+  const f = fileInput.files[0];
+  const docId = docIdInput.value.trim();
+  const docName = docNameInput.value.trim();
+  const docType = docTypeInput.value.trim() || 'generic';
+  if(!docId || !docName){ alert('Enter Document ID and Name'); return; }
+  if(!f){ alert('Choose a file'); return; }
+  const txt = await f.text();
+  try{ parseXml(txt); } catch(e){ alert('Invalid XML: '+e.message); return; }
+  const store = getStore();
+  store[docId] = store[docId] || { docName: docName, type: docType, versions: [] };
+  // update meta
+  store[docId].docName = docName;
+  store[docId].type = docType;
+  const v = (store[docId].versions.length? store[docId].versions[store[docId].versions.length-1].version+1 : 1);
+  store[docId].versions.push({ version: v, timestamp: new Date().toISOString(), xml: txt });
+  saveStore(store);
+  showMsg('Uploaded as version '+v);
+  fileInput.value='';
+  renderSummary();
+});
 
-            <div id="pasteBox" class="mt-2 hidden">
-              <label class="text-sm">Paste XML content</label>
-              <textarea id="pasteArea" rows="6" class="w-full border rounded px-2 py-1"></textarea>
+pasteBtn.addEventListener('click', ()=> pasteAreaWrap.classList.toggle('hidden'));
+savePaste.addEventListener('click', ()=>{
+  const txt = pasteArea.value.trim();
+  const docId = docIdInput.value.trim();
+  const docName = docNameInput.value.trim();
+  const docType = docTypeInput.value.trim() || 'generic';
+  if(!docId || !docName){ alert('Enter Document ID/Name'); return; }
+  if(!txt){ alert('Paste XML first'); return; }
+  try{ parseXml(txt); } catch(e){ alert('Invalid XML: '+e.message); return; }
+  const store = getStore();
+  store[docId] = store[docId] || { docName: docName, type: docType, versions: [] };
+  store[docId].docName = docName; store[docId].type = docType;
+  const v = (store[docId].versions.length? store[docId].versions[store[docId].versions.length-1].version+1 : 1);
+  store[docId].versions.push({ version: v, timestamp: new Date().toISOString(), xml: txt });
+  saveStore(store);
+  pasteArea.value=''; pasteAreaWrap.classList.add('hidden'); renderSummary(); showMsg('Pasted saved as v'+v);
+});
+
+function showMsg(t){ msg.textContent=t; msg.classList.remove('hidden'); setTimeout(()=>msg.classList.add('hidden'),3000); }
+
+showAll.addEventListener('click', ()=>{ const s = getStore(); if(!Object.keys(s).length) alert('No documents'); else {
+  let out=''; for(const id of Object.keys(s)){
+    out += `${id} • ${s[id].docName} • ${s[id].type} • versions:${s[id].versions.length}\n`;
+  }
+  alert(out);
+}});
+
+function renderSummary(){ const s = getStore(); if(!Object.keys(s).length){ summary.textContent='(no documents stored yet)'; return; }
+  let html=''; for(const id of Object.keys(s)){
+    const doc = s[id];
+    const last = doc.versions[doc.versions.length-1];
+    html += `<div class="border rounded p-2 mb-2"><div class="flex justify-between"><div><b>${id}</b> — ${doc.docName} <div class="text-xs text-slate-500">type: ${doc.type}</div></div><div class="text-xs">v${last.version}</div></div></div>`;
+  }
+  summary.innerHTML = html;
+}
+
+renderSummary();
+</script>
+</body>
+</html>              <textarea id="pasteArea" rows="6" class="w-full border rounded px-2 py-1"></textarea>
               <div class="flex justify-end mt-2"><button id="pasteSaveBtn" class="bg-amber-600 text-white px-3 py-1 rounded">Save Pasted XML</button></div>
             </div>
 
